@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import torch
@@ -86,7 +87,7 @@ class Decoder:
                         # print(f'\nbx {bx} data: {data} \n')
                         continue
                     loss = criterion(sample, label)
-                    if loss.item() > 2.18 and i != cell_id:
+                    if loss.item() > 10 and i != cell_id:
                         print(f"cell_{i} bx {bx} | loss: {loss.item()}")
 
                     if i == cell_id:
@@ -99,4 +100,5 @@ class Decoder:
 
         print(f"normal loss: {nor_loss_dist}")
         print(f"anomaly loss: {ano_loss_dist}")
+
         return nor_loss_dist, ano_loss_dist

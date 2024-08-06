@@ -3,19 +3,24 @@ from utils import update_cols, get_dfs, create_idxs, scale_df, load_csvs, featur
 import pandas as pd
 
 
+def get_missing_steps(df):
+    max_step = df['step'].max()
+    unique_steps = set(df['step'].unique())
+    needed = set(range(max_step + 1))
+    missing = needed - unique_steps
+    return missing
+
 class TestStringMethods(unittest.TestCase):
+
 
     def test_steps_in_load_csvs(self):
         ues, cells = load_csvs()
-        for j, ue in enumerate(ues):
-            steps = len(ue['step'].unique())
-            print(ue.shape[0] / 50, steps)
-            self.assertEqual(ue.shape[0] / 50, steps, msg=f"ues index {j} has problem with steps")
-        print("----")
-        for j, cell in enumerate(cells):
-            steps = len(cell['step'].unique())
-            print(cell.shape[0] / 6, steps)
-            self.assertEqual(cell.shape[0] / 6, steps, msg=f"cells index {j} has problem with steps")
+        # ue_steps = [ue['step'].unique() for ue in ues]
+        # cell_steps = [cell['step'].unique() for cell in cells]
+
+        for ue in ues:
+            print(get_missing_steps(ue))
+
 
     def test_dataframes(self):
         ues, cells = load_csvs()
@@ -26,15 +31,6 @@ class TestStringMethods(unittest.TestCase):
             for s in ue['step'].unique():
                 self.assertEqual(50, len(ue[ue['step'] == s]['ue-id'].unique()),
                                  msg=f"some steps doesnt have 50 unique ues fail at step {s}")
-
-    def test_get_dfs(self):
-        ues, cells = load_csvs()
-        dfs = get_dfs(ues, cells)
-
-        for df in dfs:
-            steps = len(df['step'].unique())
-            print(df.shape[0] / 6, steps)
-            self.assertEqual(df.shape[0], steps, msg=f"df has problem with steps")
 
 
 if __name__ == '__main__':

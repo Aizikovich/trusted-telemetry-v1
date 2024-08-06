@@ -64,8 +64,21 @@ def load_csvs(test=False):
     ue70 = pd.read_csv('data/ue_norm70_seed_42.csv')
     cell70 = pd.read_csv('data/cell_norm70_seed_42.csv')
 
-    ues = [ue70, ue0, ue3, ue4, ue5, ue6, ue7, ue70_42, ue70_43, ue100_norm44]
-    cells = [cell70, cell0, cell3, cell4, cell5, cell6, cell7, cell70_42, cell70_43, cell100_norm44]
+    ue100_norm47 = pd.read_csv('data/ue_norm_100_seed_47.csv')
+    cell100_norm47 = pd.read_csv('data/cell_norm_100_seed_47.csv')
+
+
+    ue100_norm49 = pd.read_csv('data/ue_norm_100_seed_49.csv')
+    cell100_norm49 = pd.read_csv('data/cell_norm_100_seed_49.csv')
+
+    ue100_norm50 = pd.read_csv('data/ue_norm_100_seed_50.csv')
+    cell100_norm50 = pd.read_csv('data/cell_norm_100_seed_50.csv')
+
+    ues = [ue70, ue0, ue3, ue4, ue5, ue6, ue7, ue70_42, ue70_43, ue100_norm44, ue100_norm47,ue100_norm50]
+    cells = [cell70, cell0, cell3, cell4, cell5, cell6, cell7, cell70_42, cell70_43, cell100_norm44, cell100_norm47,cell100_norm50
+             ]
+
+
 
     if test:
         ues = [ue8, ue_m]
@@ -91,6 +104,7 @@ def update_cols(ue, cell):
 
     ue = ue[ues_cols]
     cell = cell[cells_cols]
+    print("ue shape: ", ue.shape, "cell shape: ", cell.shape)
     return ue, cell
 
 
@@ -298,7 +312,7 @@ def load_single_cell_models_and_data(data_frames, architectures, args, model_dir
     input_size, hidden_size, num_layers, dropout = args
     for i in range(1, 7):
         model = architectures
-        model_path = f'{model_dir}/cell_{i}__eps_150.pth'
+        model_path = f'{model_dir}/cell_{i}__eps_200.pth'
         model.load_state_dict(torch.load(f'{model_path}', map_location=device))
         print(f"loaded model: {model_path}")
         model.to(device)
@@ -454,7 +468,7 @@ def features_extraction_new(dfs, only_cell=False, single_cell=False):
 
 def features_extraction_cells(dfs):
     res = []
-
+    print("im here in features extraction_cells")
     def safe_len_set(x):
         # if {nan} return 0 else return len(x)
         if isinstance(x, set) and len(x) == 1 and any(isinstance(item, float) and np.isnan(item) for item in x):
@@ -475,7 +489,6 @@ def features_extraction_cells(dfs):
             'new_ue_count': new_ues.apply(safe_len_set),
             'left_ue_count': left_ues.apply(safe_len_set)
         })
-        # print(res)
         return res
         # Perform the aggregations
 
@@ -506,6 +519,7 @@ def features_extraction_cells(dfs):
 
             # Clean up the columns
             final_result = final_result.drop('ue-id_<lambda>', axis=1)
+
             final_result = fill_missing_values(final_result)
 
             # Rename the new columns to remove the '_first' suffix
@@ -526,7 +540,10 @@ def fill_missing_values(df):
     # fill null values with knn imputer not idx and step
     imputer = KNNImputer(n_neighbors=3)
     impute_df = df.drop(columns=['step', 'nrCellIdentity'])
-    impute_df = pd.DataFrame(imputer.fit_transform(impute_df), columns=impute_df.columns)
+    trans_data = imputer.fit_transform(impute_df)
+
+    impute_df = pd.DataFrame(trans_data, columns=impute_df.columns)
+
     impute_df['step'] = df['step']
     impute_df['nrCellIdentity'] = df['nrCellIdentity']
     return impute_df

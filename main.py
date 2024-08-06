@@ -76,6 +76,7 @@ def single_cell_train(cell_id=0, train_size=8, name=''):
     criterion = nn.MSELoss(reduction='mean')
 
     train_dataset = DatasetLSTM(train)
+
     # test_dataset = DatasetLSTM(test)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
@@ -153,22 +154,29 @@ def train_decoder(cell_id=0, train_size=7, h_params=None):
     if h_params is None:
         h_params = {'lr': 0.0001, 'w_d': 1e-5, 'epochs': 50}
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    #
+    # print(f"Using device: {device}")
+    # ues, cells = load_csvs()
+    # dfs = get_dfs(ues, cells)
+    #
+    # dfs = features_extraction_cells(dfs)  # , only_cell=False, single_cell=False)
+    #
+    # trains = [create_idxs(dfs, win_size=3, only_cell=i) for i in range(1, 7)]
+    #
+    # train_df = []
+    # for cid in range(1, 7):
+    #     with open(f'scalers/scalers140724/scaler_single_cell_{cid}_140724.pkl', 'rb') as f:
+    #         scaler = pickle.load(f)
+    #     train_c, _ = scale_df(trains[cid - 1], test=True, scaler=scaler)
+    #     train_df.append(train_c)
 
-    print(f"Using device: {device}")
-    ues, cells = load_csvs()
-    dfs = get_dfs(ues, cells)
-
-    dfs = features_extraction_cells(dfs)  # , only_cell=False, single_cell=False)
-
-    trains = [create_idxs(dfs, win_size=3, only_cell=i) for i in range(1, 7)]
-
-    train_df = []
+    trains = []
     for cid in range(1, 7):
-        with open(f'scalers/scalers140724/scaler_single_cell_{cid}_140724.pkl', 'rb') as f:
-            scaler = pickle.load(f)
-        train_c, _ = scale_df(trains[cid - 1], test=True, scaler=scaler)
-        train_df.append(train_c)
+        with open(f'pickles/datasets/dataset_single_cell_{cid}.pkl', 'rb') as f:
+            train = pickle.load(f)
+            trains.append(train)
 
+    train_df = trains
     print("Finished preprocessing data")
 
     batch_size = 1
@@ -208,6 +216,7 @@ def decoder_evaluation(cell_id=0, data=None):
 
     ue_test_mali = pd.read_csv(f'data/ue_mali{cell_id}_seed_8.csv')
     cell_test_mali = pd.read_csv(f'data/cell_mali{cell_id}_seed_8.csv')
+
     if data is not None:
         ue_test_mali = data[0]
         cell_test_mali = data[1]
@@ -230,13 +239,12 @@ def decoder_evaluation(cell_id=0, data=None):
     tests_df = []
     # scale using the train scaler with open
     for cid in range(1, 7):
-        with open(f'scalers/scalers140724/scaler_single_cell_{cid}_140724.pkl', 'rb') as f:
+        with open(f'pickles/scalers/scaler_single_cell_{cid}.pkl', 'rb') as f:
             scaler = pickle.load(f)
         mali_test, _ = scale_df(mali_tests[cid - 1], test=True, scaler=scaler)
         tests_df.append(mali_test)
 
     print("Finished preprocessing data")
-    # # get latent spaces
 
     input_size = 11
     hidden_size = 128  # Increased hidden size
@@ -246,7 +254,7 @@ def decoder_evaluation(cell_id=0, data=None):
     ae = LSTMAutoencoder(input_size, hidden_size, num_layers, dropout)
     args = (input_size, hidden_size, num_layers, dropout)
 
-    path = f'models/models_colab/models_140724/'
+    path = f'models/models_colab/models_040824/'
     # TODO: test load single cell models
     single_cell_models, cell_loaders = load_single_cell_models_and_data(tests_df, ae, args, path, device, decoder=True)
 
@@ -256,7 +264,7 @@ def decoder_evaluation(cell_id=0, data=None):
     model = LSTMDecoder(input_size, hidden_size * 2, num_layers, cell_id)
     model.to(device)
     model.load_state_dict(
-        torch.load(f'models/decoders/decoders_2107/decode_{cell_id}_eps_150.pth', map_location=device))
+        torch.load(f'models/decoders/decoders_040824/decode_{cell_id}_eps_200.pth', map_location=device))
     criterion = nn.MSELoss(reduction='mean')
 
     decoder = Decoder(model=model, optimizer=None, criterion=criterion, device=device)
@@ -271,16 +279,52 @@ def decoder_evaluation(cell_id=0, data=None):
     print(f"first 10 average loss normal {sum(loss_normal[:10]) / len(loss_normal[:10])}")
     print(f"first 10 average loss anomaly {sum(loss_anomaly[:10]) / len(loss_anomaly[:10])}")
 
-    tp_f1 = find_best_threshold(loss_normal, loss_anomaly, save=True, name=f'cell_{cell_id}_eps_2')
+    tp_f1 = find_best_threshold(loss_normal, loss_anomaly, save=True, name=f'cell_{cell_id}_eps_2', verbose=True)
     res = plot_confusion_matrix(loss_normal, loss_anomaly, best_threshold=tp_f1, name=f'cell_{cell_id}_eps_2',
                                 save=True)
+
+    # print index of all normal loss bigger then 10
+    print('print index of all normal loss bigger then 10')
+    print([i for i, x in enumerate(loss_normal) if x > 10])
+
+    # plt.plot(loss_normal, label='normal')
+    # plt.plot(loss_anomaly, label='anomaly')
+    # # plot threshold
+    # plt.axhline(y=tp_f1, color='r', linestyle='--', label='threshold')
+    # plt.legend()
+    # plt.title(f'Loss distribution for cell {cell_id}')
+    # plt.show()
+
     return res
-    #
-    #
+
+def create_single_cell_dataset(cid, pth):
+    ues, cells = load_csvs()
+    # print(f"len ues: {len(ues)}, len cells: {len(cells)}")
+    dfs = get_dfs(ues, cells)
+    dfs = features_extraction_cells(dfs)
+
+    train = create_idxs(dfs, win_size=3, only_cell=cid)
+
+    train, scaler = scale_df(train)
+    train.fillna(0, inplace=True)
+
+    with open(f'pickles/scalers/scaler_single_cell_{cid}.pkl', 'wb') as f:
+        pickle.dump(scaler, f)
+
+    # train_dataset = DatasetLSTM(train)
+    with open(f'pickles/datasets/dataset_single_cell_{cid}.pkl', 'wb') as f:
+        pickle.dump(train, f)
+    print(f"Dataset for cell {cid} created size: {train.shape}")
+
 
 
 if __name__ == '__main__':
-    # single_cell_train(cell_id=1, train_size=8)
+
+    # for i in range(1, 7):
+    #     create_single_cell_dataset(i, 'pickles')
+    # decoder_evaluation(cell_id=2)
+    # train_decoder(cell_id=1, train_size=7)
+    # # single_cell_train(cell_id=1, train_size=8)
     # for cell_id in range(1, 7):
     #     single_cell_train(cell_id=cell_id, train_size=7)
     # for cell_id in range(1, 7):
@@ -298,7 +342,11 @@ if __name__ == '__main__':
     # ue100_25 = ue100[ue100['step'] > 25]
     # cell100_25 = cell100[cell100['step'] > 25]
     # # reduce 25 from steps
-    # ue100_25['step'] = ue100_25['step'] - 26
+    fix_steps = []
+    for i in range(72):
+        fix_steps += [i] * 50
+
+    # ue100_25['step'] = fix_steps
     # cell100_25['step'] = cell100_25['step'] - 26
     #
     # print(ue100.shape, cell100.shape)
@@ -313,9 +361,8 @@ if __name__ == '__main__':
         ue100_25 = ue100[ue100['step'] > 25]
         cell100_25 = cell100[cell100['step'] > 25]
         # reduce 25 from steps
-        ue100_25['step'] = ue100_25['step'] - 26
+        ue100_25['step'] = fix_steps
         cell100_25['step'] = cell100_25['step'] - 26
-
         temp = decoder_evaluation(cell_id=cid, data=[ue100_25, cell100_25])
         res_dicts.append(temp)
 
@@ -333,7 +380,9 @@ if __name__ == '__main__':
     f1 /= len(res_dicts)
     prec /= len(res_dicts)
     rec /= len(res_dicts)
-    print(f"Average accuracy: {acc}, Average f1: {f1}, Average precision: {prec}, Average recall: {rec}")
+    # balance accuracy
+    bacc = (rec + tn / (tn + fp)) / 2
+    print(f"Average accuracy: {acc}, Average f1: {f1}, Average precision: {prec}, Average recall: {rec}, Balance accuracy: {bacc}")
     # plot confusion matrix from tp, fp, tn, fn
     confusion_matrix = np.array([[tn, fp], [fn, tp]])
 
